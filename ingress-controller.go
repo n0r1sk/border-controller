@@ -166,7 +166,7 @@ func main() {
 	exit := false
 	for exit == false {
 		backends := querydns()
-		reload := checkconfig("/data/ingress-controller-nginx.tpl", "/etc/nginx/nginx.conf", backends)
+		reload := checkconfig("/config/ingress-controller-nginx.tpl", "/etc/nginx/nginx.conf", backends)
 		if reload == true {
 			reloadprocess()
 		}
