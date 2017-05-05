@@ -1,0 +1,37 @@
+version: "3"
+
+services:
+
+  app:
+    image: nginx
+    deploy:
+      restart_policy:
+        condition: any
+      #labels:
+      #  SERVICE_5000_NAME: "registry"
+      mode: replicated
+      replicas: 2
+      update_config:
+        delay: 2s
+
+  lb:
+    image: nginx
+    entrypoint: /data/ingress-controller
+    ports:
+      - 23233:80
+    volumes:
+      - /ingress-controller:/data
+    environment:
+      - INGRESS_STACK_SERVICE_DNS=tasks.ingress_app
+      - INGRESS_STACK_SERVICE_PORT=80
+    deploy:
+      restart_policy:
+        condition: any
+      mode: replicated
+      replicas: 1
+      update_config:
+        delay: 2s
+
+networks:
+  ingress-test:
+    driver: overlay
