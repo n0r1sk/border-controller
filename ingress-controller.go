@@ -32,14 +32,11 @@ import (
 
 var issd string
 var issp string
+var mainloop bool
 
 type Backend struct {
 	Hostname string
 	Port     string
-}
-
-func checkprocess() {
-	// TODO check if process running and restart
 }
 
 func startprocess() {
@@ -48,6 +45,7 @@ func startprocess() {
 	err := cmd.Start()
 	if err != nil {
 		log.Fatal(err)
+		mainloop = false
 	}
 }
 
@@ -57,6 +55,7 @@ func reloadprocess() {
 	err := cmd.Start()
 	if err != nil {
 		log.Fatal(err)
+		mainloop = false
 	}
 	cmd.Wait()
 }
@@ -102,6 +101,10 @@ func checkconfig(tplpath string, confpath string, backends []Backend) (reload bo
 
 	// overwrite existing conf
 	err = ioutil.WriteFile(confpath, []byte(tpl.String()), 0644)
+	if err != nil {
+		log.Print("Cannot write config file.")
+		mainloop = false
+	}
 
 	return true
 
@@ -116,7 +119,8 @@ func querydns() (bends []Backend) {
 	be, errr := net.LookupIP(issd)
 
 	if errr != nil {
-		fmt.Println(errr)
+		log.Print(errr)
+		mainloop = false
 	}
 
 	// save to simple string slice
@@ -163,8 +167,8 @@ func main() {
 	startprocess()
 
 	// now checkconfig, this will loop forever
-	exit := false
-	for exit == false {
+	mainloop = true
+	for mainloop == true {
 		backends := querydns()
 		reload := checkconfig("/config/ingress-controller-nginx.tpl", "/etc/nginx/nginx.conf", backends)
 		if reload == true {
