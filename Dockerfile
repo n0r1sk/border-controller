@@ -6,8 +6,6 @@ MAINTAINER Bernhard Rausch "rausch.bernhard@gmail.com"
 ADD ingress-controller /data/ingress-controller
 RUN chmod 755 /data/ingress-controller
 
-ADD ingress-controller-nginx.tpl /config/ingress-controller-nginx.tpl
-
-EXPOSE 80
+ADD ingress-controller-config.tpl /config/ingress-controller-config.tpl
 
 CMD ["/data/ingress-controller"]

@@ -26,12 +26,19 @@ import (
 	"os"
 	"os/exec"
 	"sort"
+	"strings"
 	"text/template"
 	"time"
 )
 
+var issc string
 var issd string
 var issp string
+var isst string
+var isscmdenv string
+var issrelenv string
+var isscmd []string
+var issrel []string
 var mainloop bool
 
 type Backend struct {
@@ -111,6 +118,8 @@ func checkconfig(tplpath string, confpath string, backends []Backend) (reload bo
 }
 
 func querydns() (bends []Backend) {
+
+	// we dont kill the mainloop if dns not working because it could come online later
 	var data []string
 	var backends []Backend
 	var b Backend
@@ -120,7 +129,6 @@ func querydns() (bends []Backend) {
 
 	if errr != nil {
 		log.Print(errr)
-		mainloop = false
 	}
 
 	// save to simple string slice
@@ -140,28 +148,49 @@ func querydns() (bends []Backend) {
 	return backends
 }
 
-func main() {
+func checkenvironment() {
 
 	var errb bool
+
+	// The following environments must be present
 	issd, errb = os.LookupEnv("INGRESS_STACK_SERVICE_DNS")
-
-	if !errb {
-		panic("No environment variable INGRESS_STACK_SERVICE_DNS!")
-	}
-
-	if issd == "" {
-		panic("Environment variable INGRESS_STACK_SERVICE_DNS is empty!")
+	if (!errb) || (issd == "") {
+		log.Panic("No environment variable INGRESS_STACK_SERVICE_DNS or empty value!")
 	}
 
 	issp, errb = os.LookupEnv("INGRESS_STACK_SERVICE_PORT")
-
-	if !errb {
-		panic("No environment variable INGRESS_STACK_SERVICE_PORT!")
+	if (!errb) || (issp == "") {
+		log.Panic("No environment variable INGRESS_STACK_SERVICE_PORT or empty value!")
 	}
 
-	if issp == "" {
-		panic("Environment variable INGRESS_STACK_SERVICE_PORT is empty!")
+	isst, errb = os.LookupEnv("INGRESS_STACK_SERVICE_TEMPLATE")
+	if (!errb) || isst == "" {
+		log.Panic("Environment variable INGRESS_STACK_SERVICE_TEMPLATE not present or emtpy value!")
 	}
+
+	issc, errb = os.LookupEnv("INGRESS_STACK_SERVICE_CONFIGPATH")
+	if (!errb) || (issc == "") {
+		log.Panic("Environment variable INGRESS_STACK_SERVICE_CONFIGPATH not present or emtpy value!")
+	}
+
+	isscmdenv, errb = os.LookupEnv("INGRESS_STACK_SERVICE_STARTCOMMAND")
+	if (!errb) || (issc == "") {
+		log.Panic("Environment variable INGRESS_STACK_SERVICE_STARTCOMMAND not present or emtpy value!")
+	}
+
+	issrelenv, errb = os.LookupEnv("INGRESS_STACK_SERVICE_RELOADCOMMAND")
+	if (!errb) || (issc == "") {
+		log.Panic("Environment variable INGRESS_STACK_SERVICE_RELOADCOMMAND not present or emtpy value!")
+	}
+
+	isscmd = strings.Split(isscmdenv, " ")
+	issrel = strings.Split(issrelenv, " ")
+
+}
+
+func main() {
+
+	checkenvironment()
 
 	// start loadbalancer
 	startprocess()
@@ -170,7 +199,7 @@ func main() {
 	mainloop = true
 	for mainloop == true {
 		backends := querydns()
-		reload := checkconfig("/config/ingress-controller-nginx.tpl", "/etc/nginx/nginx.conf", backends)
+		reload := checkconfig(isst, issc, backends)
 		if reload == true {
 			reloadprocess()
 		}
