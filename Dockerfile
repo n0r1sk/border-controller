@@ -6,7 +6,7 @@ MAINTAINER Bernhard Rausch "rausch.bernhard@gmail.com"
 RUN apt-get update && apt-get -y install wget
 
 RUN mkdir /data
-RUN wget -O /data/traefik https://github.com/containous/traefik/releases/download/v1.2.3/traefik_linux-amd64 
+RUN wget --quiet --no-check-certificate -O /data/traefik https://github.com/containous/traefik/releases/download/v1.2.3/traefik_linux-amd64 
 RUN chmod 755 /data/traefik
 
 ADD ingress-controller /data/ingress-controller

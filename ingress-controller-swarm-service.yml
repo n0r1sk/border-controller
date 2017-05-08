@@ -22,10 +22,7 @@ services:
     environment:
       - INGRESS_STACK_SERVICE_DNS=tasks.ingress_app
       - INGRESS_STACK_SERVICE_PORT=80
-      - INGRESS_STACK_SERVICE_TEMPLATE=/config/ingress-controller-config.tpl
-      - INGRESS_STACK_SERVICE_CONFIGPATH=/etc/nginx/nginx.conf
-      - INGRESS_STACK_SERVICE_STARTCOMMAND="nginx -g daemon off;"
-      - INGRESS_STACK_SERVICE_RELOADCOMMAND="nginx -s reload"
+      - INGRESS_STACK_TRAEFIKHEALTH_PORT=9191
     deploy:
       restart_policy:
         condition: any

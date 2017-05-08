@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"sort"
@@ -30,14 +31,9 @@ import (
 	"time"
 )
 
-var issc string
 var issd string
 var issp string
-var isst string
-var isscmdenv string
-var issrelenv string
-var isscmd []string
-var issrel []string
+var issthp string
 var mainloop bool
 
 type Backend struct {
@@ -45,38 +41,44 @@ type Backend struct {
 	Port     string
 }
 
-func checkrunningprocess() (running bool) {
+func isprocessrunning() (running bool) {
 	// check if traefik is healthy
 	var run bool
-	run = false
+	run = true
+
+	resp, err := http.Get("http://localhost:" + issthp + "/health")
+
+	if err != nil {
+		log.Print("Error getting traefik status. Trying to start traefik. NIL!")
+		log.Print(err)
+		return false
+	}
+
+	if resp.StatusCode != 200 {
+		log.Print("Error getting traefik status. Trying to start traefik.")
+		log.Print(string(resp.StatusCode))
+		return false
+	}
+
+	log.Print("Traefik is running. All OK!")
 	return run
 }
 
 func startprocess() {
 	log.Print("Start Process!")
-	cmd := exec.Command(isscmd[0], isscmd...)
+	cmd := exec.Command("/data/traefik", "-c", "/config/traefik.toml")
 	err := cmd.Start()
 	if err != nil {
 		log.Fatal(err)
 		mainloop = false
 	}
+
 }
 
-func reloadprocess() {
-	log.Print("Reloading Process!")
-	cmd := exec.Command(issrel[0], issrel...)
-	err := cmd.Start()
-	if err != nil {
-		log.Fatal(err)
-		mainloop = false
-	}
-	cmd.Wait()
-}
-
-func checkconfig(tplpath string, confpath string, backends []Backend) {
+func checkconfig(backends []Backend) {
 
 	//  open template
-	t, err := template.ParseFiles(tplpath)
+	t, err := template.ParseFiles("/config/ingress-controller-config.tpl")
 	if err != nil {
 		log.Print(err)
 		return
@@ -86,7 +88,7 @@ func checkconfig(tplpath string, confpath string, backends []Backend) {
 	var tpl bytes.Buffer
 	err = t.Execute(&tpl, backends)
 	if err != nil {
-		log.Print("execute: ", err)
+		log.Print(err)
 		return
 	}
 
@@ -96,9 +98,10 @@ func checkconfig(tplpath string, confpath string, backends []Backend) {
 	log.Print("TPL: " + tpl.String())
 
 	// open existing config, read it to memory
-	exconf, errexconf := ioutil.ReadFile(confpath)
+	exconf, errexconf := ioutil.ReadFile("/config/traefik.toml")
 	if errexconf != nil {
 		log.Print("Cannot read existing conf!")
+		log.Print(errexconf)
 	}
 
 	md5exconf := fmt.Sprintf("%x", md5.Sum(exconf))
@@ -113,9 +116,10 @@ func checkconfig(tplpath string, confpath string, backends []Backend) {
 	log.Print("MD5 sums different writing new conf!")
 
 	// overwrite existing conf
-	err = ioutil.WriteFile(confpath, []byte(tpl.String()), 0644)
+	err = ioutil.WriteFile("/config/traefik.toml", []byte(tpl.String()), 0644)
 	if err != nil {
 		log.Print("Cannot write config file.")
+		log.Print(err)
 		mainloop = false
 	}
 
@@ -142,7 +146,7 @@ func querydns() (bends []Backend) {
 
 	sort.Strings(data)
 
-	// convert it to struct slice/etc/ngingx/nginx.conf
+	// convert it to struct
 	for _, ip := range data {
 		b.Hostname = ip
 		b.Port = issp
@@ -167,6 +171,11 @@ func checkenvironment() {
 		log.Panic("No environment variable INGRESS_STACK_SERVICE_PORT or empty value!")
 	}
 
+	issthp, errb = os.LookupEnv("INGRESS_STACK_TRAEFIKHEALTH_PORT")
+	if (!errb) || (issp == "") {
+		log.Panic("No environment variable INGRESS_STACK_TRAEFIKHEALTH_PORT or empty value!")
+	}
+
 }
 
 func main() {
@@ -176,11 +185,15 @@ func main() {
 	// now checkconfig, this will loop forever
 	mainloop = true
 	for mainloop == true {
-		backends := querydns()
-		checkconfig(isst, issc, backends)
-		// check if configfile exists
-		// check if traefik is running and start traefik
 
-		time.Sleep(5 * time.Second)
+		backends := querydns()
+
+		checkconfig(backends)
+
+		if !isprocessrunning() {
+			startprocess()
+		}
+
+		time.Sleep(10 * time.Second)
 	}
 }
