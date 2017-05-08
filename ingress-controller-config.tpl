@@ -1,22 +1,22 @@
-worker_processes auto;
+[entryPoints]
+  [entryPoints.http]
+  address = ":80"
 
-http {
+[file]
+watch = true
 
-    upstream upstreams {
-	{{range .}}
-	server {{.Hostname}}:{{.Port}}; {{end}}
+[web]
+address = ":9191"
+[backends]
+  [backends.backend1]
+    [backends.backend1.loadbalancer]
+      sticky = true
+    {{range $index, $entry := .}} 
+    [backends.backend1.servers.server{{$index}}]
+    url = "http://{{$entry.Hostname}}:{{$entry.Port}}" 
+     weight = 1{{end}}
 
-	sticky learn
-          create=$upstream_cookie_examplecookie
-          lookup=$cookie_examplecookie
-          zone=client_sessions:1m;
-    }
-
-    server {
-        listen 80;
-        location / {
-                proxy_pass http://upstreams;
-        }
-    }
-}
-
+[frontends]
+  [frontends.frontend1]
+  entrypoints = ["http"]
+  backend = "backend1"

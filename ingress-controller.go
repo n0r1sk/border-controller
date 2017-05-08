@@ -26,7 +26,6 @@ import (
 	"os"
 	"os/exec"
 	"sort"
-	"strings"
 	"text/template"
 	"time"
 )
@@ -46,9 +45,16 @@ type Backend struct {
 	Port     string
 }
 
+func checkrunningprocess() (running bool) {
+	// check if traefik is healthy
+	var run bool
+	run = false
+	return run
+}
+
 func startprocess() {
 	log.Print("Start Process!")
-	cmd := exec.Command("nginx", "-g", "daemon off;")
+	cmd := exec.Command(isscmd[0], isscmd...)
 	err := cmd.Start()
 	if err != nil {
 		log.Fatal(err)
@@ -58,7 +64,7 @@ func startprocess() {
 
 func reloadprocess() {
 	log.Print("Reloading Process!")
-	cmd := exec.Command("nginx", "-s", "reload")
+	cmd := exec.Command(issrel[0], issrel...)
 	err := cmd.Start()
 	if err != nil {
 		log.Fatal(err)
@@ -67,7 +73,7 @@ func reloadprocess() {
 	cmd.Wait()
 }
 
-func checkconfig(tplpath string, confpath string, backends []Backend) (reload bool) {
+func checkconfig(tplpath string, confpath string, backends []Backend) {
 
 	//  open template
 	t, err := template.ParseFiles(tplpath)
@@ -92,7 +98,7 @@ func checkconfig(tplpath string, confpath string, backends []Backend) (reload bo
 	// open existing config, read it to memory
 	exconf, errexconf := ioutil.ReadFile(confpath)
 	if errexconf != nil {
-		panic("Cannot read existing conf!")
+		log.Print("Cannot read existing conf!")
 	}
 
 	md5exconf := fmt.Sprintf("%x", md5.Sum(exconf))
@@ -101,7 +107,7 @@ func checkconfig(tplpath string, confpath string, backends []Backend) (reload bo
 	// comapre md5 and write config if needed
 	if md5tpl == md5exconf {
 		log.Print("MD5 sums equal! Nothing to do.")
-		return false
+		return
 	}
 
 	log.Print("MD5 sums different writing new conf!")
@@ -112,8 +118,6 @@ func checkconfig(tplpath string, confpath string, backends []Backend) (reload bo
 		log.Print("Cannot write config file.")
 		mainloop = false
 	}
-
-	return true
 
 }
 
@@ -163,46 +167,20 @@ func checkenvironment() {
 		log.Panic("No environment variable INGRESS_STACK_SERVICE_PORT or empty value!")
 	}
 
-	isst, errb = os.LookupEnv("INGRESS_STACK_SERVICE_TEMPLATE")
-	if (!errb) || isst == "" {
-		log.Panic("Environment variable INGRESS_STACK_SERVICE_TEMPLATE not present or emtpy value!")
-	}
-
-	issc, errb = os.LookupEnv("INGRESS_STACK_SERVICE_CONFIGPATH")
-	if (!errb) || (issc == "") {
-		log.Panic("Environment variable INGRESS_STACK_SERVICE_CONFIGPATH not present or emtpy value!")
-	}
-
-	isscmdenv, errb = os.LookupEnv("INGRESS_STACK_SERVICE_STARTCOMMAND")
-	if (!errb) || (issc == "") {
-		log.Panic("Environment variable INGRESS_STACK_SERVICE_STARTCOMMAND not present or emtpy value!")
-	}
-
-	issrelenv, errb = os.LookupEnv("INGRESS_STACK_SERVICE_RELOADCOMMAND")
-	if (!errb) || (issc == "") {
-		log.Panic("Environment variable INGRESS_STACK_SERVICE_RELOADCOMMAND not present or emtpy value!")
-	}
-
-	isscmd = strings.Split(isscmdenv, " ")
-	issrel = strings.Split(issrelenv, " ")
-
 }
 
 func main() {
 
 	checkenvironment()
 
-	// start loadbalancer
-	startprocess()
-
 	// now checkconfig, this will loop forever
 	mainloop = true
 	for mainloop == true {
 		backends := querydns()
-		reload := checkconfig(isst, issc, backends)
-		if reload == true {
-			reloadprocess()
-		}
+		checkconfig(isst, issc, backends)
+		// check if configfile exists
+		// check if traefik is running and start traefik
+
 		time.Sleep(5 * time.Second)
 	}
 }
