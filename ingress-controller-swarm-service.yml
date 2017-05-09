@@ -19,6 +19,7 @@ services:
     entrypoint: /data/ingress-controller
     ports:
       - 23233:80
+      - 23234:9191
     environment:
       - INGRESS_STACK_SERVICE_DNS=tasks.ingress_app
       - INGRESS_STACK_SERVICE_PORT=80
