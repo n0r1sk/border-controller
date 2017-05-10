@@ -1,17 +1,11 @@
-FROM ubuntu:16.04
+FROM nginx
 
 MAINTAINER Mario Kleinsasser "mario.kleinsasser@gmail.com"
 MAINTAINER Bernhard Rausch "rausch.bernhard@gmail.com"
 
-RUN apt-get update && apt-get -y install wget
+COPY border-controller /data/border-controller
+RUN chmod 755 /data/border-controller
 
-RUN mkdir /data
-RUN wget --quiet --no-check-certificate -O /data/traefik https://github.com/containous/traefik/releases/download/v1.2.3/traefik_linux-amd64 
-RUN chmod 755 /data/traefik
+COPY border-controller-config.tpl /config/border-controller-config.tpl
 
-ADD ingress-controller /data/ingress-controller
-RUN chmod 755 /data/ingress-controller
-
-ADD ingress-controller-config.tpl /config/ingress-controller-config.tpl
-
-CMD ["/data/ingress-controller"]
+CMD ["/data/border-controller"]
