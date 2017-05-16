@@ -26,6 +26,7 @@ import (
 	"log"
 	"net/http"
 	"os/exec"
+	//"reflect"
 	"sort"
 	"strings"
 	"text/template"
@@ -184,7 +185,10 @@ func getstackerviceinfo(config T) (backends []string, err error) {
 			if err != nil {
 				return nil, errors.New("Error reading during unmarshal of response body.")
 			}
-			log.Print(m.Acode)
+
+			if m.Acode >= 500 {
+				return nil, errors.New(m.Astring)
+			}
 		}
 
 		return m.Aslice, nil
