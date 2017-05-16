@@ -20,11 +20,11 @@ import (
 	"bytes"
 	"crypto/md5"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
 	"os/exec"
 	"sort"
 	"strings"
@@ -155,78 +155,66 @@ func checkconfig(be []string, domain string) (changed bool) {
 
 }
 
-func getstackerviceinfo(ssn string, dcu string) (backends []string, err error) {
+func getstackerviceinfo(config T) (backends []string, err error) {
 
 	var m Message
 
-	resp, err := http.Get(dcu + "/service/inspect/" + ssn)
+	for _, dh := range config.General.Swarm.Docker_hosts {
+		log.Print(dh)
 
-	if err != nil {
-		log.Print("Cannot reach Docker Controller")
-		return nil, nil
-	}
+		resp, err := http.Get("http://" + dh + "." +
+			config.General.Swarm.Docker_host_dns_domain + ":" +
+			config.General.Swarm.Docker_controller.Exposed_port +
+			"/service/inspect/" + config.General.Swarm.Ingress_service_name)
 
-	defer resp.Body.Close()
-
-	if resp.StatusCode == 200 { // OK
-		bodyBytes, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			log.Print("Error reading response body")
-			return nil, nil
+			log.Print(err)
+			continue
 		}
 
-		err = json.Unmarshal(bodyBytes, &m)
-		if err != nil {
-			log.Print("Error reading during unmarshal of response body.")
-			return nil, nil
+		defer resp.Body.Close()
+
+		if resp.StatusCode == 200 { // OK
+			bodyBytes, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				return nil, errors.New("Error reading response body")
+			}
+
+			err = json.Unmarshal(bodyBytes, &m)
+			if err != nil {
+				return nil, errors.New("Error reading during unmarshal of response body.")
+			}
+			log.Print(m.Acode)
 		}
-		log.Print(m.Acode)
+
+		return m.Aslice, nil
+
 	}
 
-	return m.Aslice, nil
+	return nil, errors.New("Cannot reach any docker host")
 
-}
-
-func checkenvironment() (ssn string, dcu string, domain string) {
-
-	var errb bool
-
-	// The following environments must be present
-	ssn, errb = os.LookupEnv("DOCKER_STACK_LB_SERVICE_NAME")
-	if (!errb) || (ssn == "") {
-		log.Panic("No environment variable DOCKER_STACK_LB_SERVICE_NAME or empty value!")
-	}
-
-	dcu, errb = os.LookupEnv("DOCKER_CONTROLLER_URL")
-	if (!errb) || (dcu == "") {
-		log.Panic("No environment variable DOCKER_CONTROLLER_URL or empty value!")
-	}
-
-	domain, errb = os.LookupEnv("DOCKER_SWARM_NODE_DNS_DOMAIN")
-	if (!errb) || (dcu == "") {
-		log.Panic("No environment variable DOCKER_SWARM_NODE_DNS_DOMAIN or empty value!")
-	}
-
-	return ssn, dcu, domain
 }
 
 func main() {
 
-	ssn, dcu, domain := checkenvironment()
+	config, ok := ReadConfigfile()
+	if !ok {
+		log.Panic("Error during config parsing")
+	}
 
 	// now checkconfig, this will loop forever
 	mainloop = true
 	for mainloop == true {
 
-		backends, err := getstackerviceinfo(ssn, dcu)
+		backends, err := getstackerviceinfo(config)
 
 		if err != nil {
-			log.Print("Error in getting stack service info")
+			log.Print(err)
 			time.Sleep(2 * time.Second)
 			continue
 		}
 
-		changed := checkconfig(backends, domain)
+		changed := checkconfig(backends, config.General.Swarm.Docker_host_dns_domain)
 
 		if changed == true {
 			if isprocessrunning() {
