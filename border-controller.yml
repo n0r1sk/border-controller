@@ -1,0 +1,9 @@
+general:
+  swarm:
+    docker_hosts:
+      - localhost
+    docker_host_dns_domain: localdomain
+    ingress_service_name: ingress_lb
+    docker_controller:
+      api_key: just-a-api-key
+      exposed_port: 8080
