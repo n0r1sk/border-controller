@@ -215,7 +215,7 @@ func main() {
 
 		if err != nil {
 			log.Print(err)
-			time.Sleep(2 * time.Second)
+			time.Sleep(5 * time.Second)
 			continue
 		}
 
