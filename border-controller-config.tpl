@@ -11,7 +11,8 @@ http {
 
     upstream upstreams {
         hash $remote_addr;
-	{{range $index, $entry := .}} server {{$entry.Node}}:{{$entry.Port}};{{end}}
+	{{range $index, $entry := .}} server {{$entry.Node}}:{{$entry.Port}};
+        {{end}}
     }
 
     server {
