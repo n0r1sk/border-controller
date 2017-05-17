@@ -26,8 +26,8 @@ import (
 	"log"
 	"net/http"
 	"os/exec"
-	//"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -166,7 +166,8 @@ func getstackerviceinfo(config T) (backends []string, err error) {
 		resp, err := http.Get("http://" + dh + "." +
 			config.General.Swarm.Docker_host_dns_domain + ":" +
 			config.General.Swarm.Docker_controller.Exposed_port +
-			"/service/inspect/" + config.General.Swarm.Ingress_service_name)
+			"/service/inspect/" + config.General.Swarm.Ingress_service_name +
+			"?api_key=" + config.General.Swarm.Docker_controller.Api_key)
 
 		if err != nil {
 			log.Print(err)
@@ -187,7 +188,7 @@ func getstackerviceinfo(config T) (backends []string, err error) {
 			}
 
 			if m.Acode >= 500 {
-				return nil, errors.New(m.Astring)
+				return nil, errors.New(strconv.Itoa(int(m.Acode)) + " " + m.Astring)
 			}
 		}
 
