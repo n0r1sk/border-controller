@@ -26,7 +26,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"os"
 	"os/exec"
 	"sort"
 	"strconv"
@@ -331,8 +330,6 @@ func main() {
 		} else {
 			log.Panic("No Service Descovery configured!")
 		}
-
-		os.Exit(0)
 
 		if changed == true {
 			if isprocessrunning() {
