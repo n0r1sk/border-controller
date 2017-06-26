@@ -27,10 +27,12 @@ import (
 type T struct {
 	General struct {
 		Swarm struct {
-			Docker_hosts           []string
-			Docker_host_dns_domain string
-			Ingress_service_name   string
-			Docker_controller      struct {
+			Docker_hosts                []string
+			Docker_host_dns_domain      string
+			Ingress_service_name        string
+			Stack_service_task_dns_name string
+			Stack_service_port          string
+			Docker_controller           struct {
 				Api_key      string
 				Exposed_port string
 			}

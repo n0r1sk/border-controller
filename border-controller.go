@@ -24,7 +24,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
+	"os"
 	"os/exec"
 	"sort"
 	"strconv"
@@ -156,6 +158,75 @@ func checkconfig(be []string, domain string) (changed bool) {
 
 }
 
+func checkconfigdns(be []string, port string) (changed bool) {
+
+	// first sort the string slice
+	sort.Strings(be)
+
+	type Backend struct {
+		Node string
+		Port string
+	}
+
+	var data []Backend
+
+	for _, e := range be {
+		var t Backend
+		t.Node = e
+		t.Port = port
+		data = append(data, t)
+	}
+
+	//  open template
+	t, err := template.ParseFiles("/config/border-controller-config.tpl")
+	if err != nil {
+		log.Print(err)
+		return false
+	}
+
+	// process template
+	var tpl bytes.Buffer
+	err = t.Execute(&tpl, data)
+	if err != nil {
+		log.Print(err)
+		return false
+	}
+
+	// create md5 of result
+	md5tpl := fmt.Sprintf("%x", md5.Sum([]byte(tpl.String())))
+	log.Print("MD5 of TPL: " + md5tpl)
+	log.Print("TPL: " + tpl.String())
+
+	// open existing config, read it to memory
+	exconf, errexconf := ioutil.ReadFile("/etc/nginx/nginx.conf")
+	if errexconf != nil {
+		log.Print("Cannot read existing conf!")
+		log.Print(errexconf)
+	}
+
+	md5exconf := fmt.Sprintf("%x", md5.Sum(exconf))
+	log.Print("MD5 of EXCONF: " + md5exconf)
+
+	// comapre md5 and write config if needed
+	if md5tpl == md5exconf {
+		log.Print("MD5 sums equal! Nothing to do.")
+		return false
+	}
+
+	log.Print("MD5 sums different writing new conf!")
+
+	// overwrite existing conf
+	err = ioutil.WriteFile("/etc/nginx/nginx.conf", []byte(tpl.String()), 0644)
+	if err != nil {
+		log.Print("Cannot write config file.")
+		log.Print(err)
+		mainloop = false
+	}
+
+	return true
+
+}
+
 func getstackerviceinfo(config T) (backends []string, err error) {
 
 	var m Message
@@ -200,6 +271,24 @@ func getstackerviceinfo(config T) (backends []string, err error) {
 
 }
 
+func getstacktaskdns(config T) (backends []string, err error) {
+
+	if config.General.Swarm.Stack_service_port == "" {
+		log.Panic("No Swarm Service Port given! Exiting!")
+	}
+
+	// resolve fiven service names
+
+	servicerecords, err := net.LookupHost(config.General.Swarm.Stack_service_task_dns_name)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return servicerecords, nil
+
+}
+
 func main() {
 
 	config, ok := ReadConfigfile()
@@ -211,15 +300,39 @@ func main() {
 	mainloop = true
 	for mainloop == true {
 
-		backends, err := getstackerviceinfo(config)
+		var changed bool
 
-		if err != nil {
-			log.Print(err)
-			time.Sleep(5 * time.Second)
-			continue
+		if config.General.Swarm.Stack_service_task_dns_name != "" && config.General.Swarm.Ingress_service_name != "" {
+			log.Panic("Stack Service Task DNS and Ingress Service Name configured! Exiting!")
 		}
 
-		changed := checkconfig(backends, config.General.Swarm.Docker_host_dns_domain)
+		if config.General.Swarm.Ingress_service_name != "" {
+			backends, err := getstackerviceinfo(config)
+			log.Print(backends)
+			if err != nil {
+				log.Print(err)
+				time.Sleep(5 * time.Second)
+				continue
+			}
+
+			changed = checkconfig(backends, config.General.Swarm.Docker_host_dns_domain)
+
+		} else if config.General.Swarm.Stack_service_task_dns_name != "" {
+			backends, err := getstacktaskdns(config)
+			log.Print(backends)
+			if err != nil {
+				log.Print(err)
+				time.Sleep(5 * time.Second)
+				continue
+			}
+
+			changed = checkconfigdns(backends, config.General.Swarm.Stack_service_port)
+
+		} else {
+			log.Panic("No Service Descovery configured!")
+		}
+
+		os.Exit(0)
 
 		if changed == true {
 			if isprocessrunning() {
@@ -233,6 +346,6 @@ func main() {
 			}
 		}
 
-		time.Sleep(5 * time.Second)
+		time.Sleep(10 * time.Second)
 	}
 }
