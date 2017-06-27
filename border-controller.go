@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/md5"
 	"encoding/json"
@@ -26,7 +27,9 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"os/exec"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -42,28 +45,47 @@ type Message struct {
 	Aslice  []string
 }
 
-func isprocessrunning() (running bool) {
-	// check if nginx is healthy
-	var run bool
-	run = true
+type Backend struct {
+	Node string
+	Port string
+}
 
-	// do not follow redirects
-	client := &http.Client{
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		}}
+func isprocessrunningps(processname string) (running bool) {
 
-	// default nignx is binding to port 80 on default
-	_, err := client.Get("http://localhost")
+	// get all folders from proc filesystem
 
-	if err != nil {
-		log.Print("Error getting body from nginx. Trying to start nginx. NIL!")
-		log.Print(err)
-		return false
+	files, _ := ioutil.ReadDir("/proc")
+	for _, f := range files {
+
+		// check if folder is a integer (process number)
+		if _, err := strconv.Atoi(f.Name()); err == nil {
+			// open status file of process
+			f, err := os.Open("/proc/" + f.Name() + "/status")
+			if err != nil {
+				log.Println(err)
+				return false
+			}
+
+			// read status line by line
+			scanner := bufio.NewScanner(f)
+
+			// check if process name in status of process
+			for scanner.Scan() {
+
+				re := regexp.MustCompile("^Name:.*" + processname + ".*")
+				match := re.MatchString(scanner.Text())
+
+				if match == true {
+					return true
+				}
+
+			}
+
+		}
 	}
 
-	log.Print("nginx is running. All OK!")
-	return run
+	return false
+
 }
 
 func startprocess() {
@@ -92,11 +114,6 @@ func checkconfig(be []string, domain string) (changed bool) {
 	// first sort the string slice
 	sort.Strings(be)
 
-	type Backend struct {
-		Node string
-		Port string
-	}
-
 	var data []Backend
 
 	for _, e := range be {
@@ -107,53 +124,7 @@ func checkconfig(be []string, domain string) (changed bool) {
 		data = append(data, t)
 	}
 
-	//  open template
-	t, err := template.ParseFiles("/config/border-controller-config.tpl")
-	if err != nil {
-		log.Print(err)
-		return false
-	}
-
-	// process template
-	var tpl bytes.Buffer
-	err = t.Execute(&tpl, data)
-	if err != nil {
-		log.Print(err)
-		return false
-	}
-
-	// create md5 of result
-	md5tpl := fmt.Sprintf("%x", md5.Sum([]byte(tpl.String())))
-	log.Print("MD5 of TPL: " + md5tpl)
-	log.Print("TPL: " + tpl.String())
-
-	// open existing config, read it to memory
-	exconf, errexconf := ioutil.ReadFile("/etc/nginx/nginx.conf")
-	if errexconf != nil {
-		log.Print("Cannot read existing conf!")
-		log.Print(errexconf)
-	}
-
-	md5exconf := fmt.Sprintf("%x", md5.Sum(exconf))
-	log.Print("MD5 of EXCONF: " + md5exconf)
-
-	// comapre md5 and write config if needed
-	if md5tpl == md5exconf {
-		log.Print("MD5 sums equal! Nothing to do.")
-		return false
-	}
-
-	log.Print("MD5 sums different writing new conf!")
-
-	// overwrite existing conf
-	err = ioutil.WriteFile("/etc/nginx/nginx.conf", []byte(tpl.String()), 0644)
-	if err != nil {
-		log.Print("Cannot write config file.")
-		log.Print(err)
-		mainloop = false
-	}
-
-	return true
+	return writeconfig(data)
 
 }
 
@@ -161,11 +132,6 @@ func checkconfigdns(be []string, port string) (changed bool) {
 
 	// first sort the string slice
 	sort.Strings(be)
-
-	type Backend struct {
-		Node string
-		Port string
-	}
 
 	var data []Backend
 
@@ -175,6 +141,11 @@ func checkconfigdns(be []string, port string) (changed bool) {
 		t.Port = port
 		data = append(data, t)
 	}
+
+	return writeconfig(data)
+}
+
+func writeconfig(data []Backend) (changed bool) {
 
 	//  open template
 	t, err := template.ParseFiles("/config/border-controller-config.tpl")
@@ -332,13 +303,13 @@ func main() {
 		}
 
 		if changed == true {
-			if isprocessrunning() {
+			if isprocessrunningps("nginx") {
 				reloadprocess()
 			} else {
 				startprocess()
 			}
 		} else {
-			if !isprocessrunning() {
+			if !isprocessrunningps("nginx") {
 				startprocess()
 			}
 		}
