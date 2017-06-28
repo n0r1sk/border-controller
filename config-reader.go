@@ -25,6 +25,7 @@ import (
 )
 
 type T struct {
+	Debug   bool
 	General struct {
 		Swarm struct {
 			Docker_hosts                []string
@@ -37,6 +38,7 @@ type T struct {
 				Exposed_port string
 			}
 		}
+		Check_intervall int64
 	}
 }
 

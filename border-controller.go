@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -35,6 +34,8 @@ import (
 	"strings"
 	"text/template"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 var mainloop bool
@@ -165,7 +166,7 @@ func writeconfig(data []Backend) (changed bool) {
 	// create md5 of result
 	md5tpl := fmt.Sprintf("%x", md5.Sum([]byte(tpl.String())))
 	log.Print("MD5 of TPL: " + md5tpl)
-	log.Print("TPL: " + tpl.String())
+	log.Debug("TPL: " + tpl.String())
 
 	// open existing config, read it to memory
 	exconf, errexconf := ioutil.ReadFile("/etc/nginx/nginx.conf")
@@ -261,9 +262,27 @@ func getstacktaskdns(config T) (backends []string, err error) {
 
 func main() {
 
+	// configure logrus logger
+	customFormatter := new(log.TextFormatter)
+	customFormatter.TimestampFormat = "2006-01-02 15:04:05"
+	log.SetFormatter(customFormatter)
+	customFormatter.FullTimestamp = true
+	customFormatter.ForceColors = true
+
 	config, ok := ReadConfigfile()
 	if !ok {
 		log.Panic("Error during config parsing")
+	}
+
+	// get debug flag from config
+	if config.Debug == true {
+		log.SetLevel(log.DebugLevel)
+	}
+
+	// set check intervall from config
+	checkintervall := config.General.Check_intervall
+	if checkintervall == 0 {
+		checkintervall = 30
 	}
 
 	// now checkconfig, this will loop forever
@@ -292,7 +311,7 @@ func main() {
 			log.Print(backends)
 			if err != nil {
 				log.Print(err)
-				time.Sleep(5 * time.Second)
+				time.Sleep(time.Duration(checkintervall) * time.Second)
 				continue
 			}
 
@@ -314,6 +333,6 @@ func main() {
 			}
 		}
 
-		time.Sleep(10 * time.Second)
+		time.Sleep(time.Duration(checkintervall) * time.Second)
 	}
 }
