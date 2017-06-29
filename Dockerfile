@@ -3,6 +3,8 @@ FROM nginx
 MAINTAINER Mario Kleinsasser "mario.kleinsasser@gmail.com"
 MAINTAINER Bernhard Rausch "rausch.bernhard@gmail.com"
 
+RUN apt-get update && apt-get -y install dnsutils net-tools procps
+
 COPY border-controller /data/border-controller
 RUN chmod 755 /data/border-controller
 
