@@ -172,7 +172,15 @@ func getstacktaskdns(task_dns string) (addrs []string, err error) {
 
 func refreshconfigstruct(config T) {
 	// get information on services and context configuration information
+
+	var del bool
+	del = false
+
 	for k, v := range config.General.Resources {
+		if del == false {
+			v.Servers = nil
+			del = true
+		}
 
 		// there must be a dns name given and we have to get the backend ips
 		servicerecords, err := getstacktaskdns(v.Task_dns)
