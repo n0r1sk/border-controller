@@ -24,6 +24,14 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+type Backendcfg struct {
+	Upstream string
+	Context  string
+	Servers  []Backend
+	Port     string
+	Task_dns string
+}
+
 type T struct {
 	Debug   bool
 	General struct {
@@ -39,6 +47,7 @@ type T struct {
 			}
 		}
 		Check_intervall int64
+		Resources       map[string]*Backendcfg
 	}
 }
 

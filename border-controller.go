@@ -20,18 +20,13 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/md5"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
-	"net/http"
 	"os"
 	"os/exec"
 	"regexp"
-	"sort"
 	"strconv"
-	"strings"
 	"text/template"
 	"time"
 
@@ -47,8 +42,8 @@ type Message struct {
 }
 
 type Backend struct {
-	Node string
-	Port string
+	Server string
+	Port   string
 }
 
 func isprocessrunningps(processname string) (running bool) {
@@ -110,43 +105,7 @@ func reloadprocess() {
 	cmd.Wait()
 }
 
-func checkconfig(be []string, domain string) (changed bool) {
-
-	// first sort the string slice
-	sort.Strings(be)
-
-	var data []Backend
-
-	for _, e := range be {
-		var t Backend
-		et := strings.Split(e, " ")
-		t.Node = et[0] + "." + domain
-		t.Port = et[1]
-		data = append(data, t)
-	}
-
-	return writeconfig(data)
-
-}
-
-func checkconfigdns(be []string, port string) (changed bool) {
-
-	// first sort the string slice
-	sort.Strings(be)
-
-	var data []Backend
-
-	for _, e := range be {
-		var t Backend
-		t.Node = e
-		t.Port = port
-		data = append(data, t)
-	}
-
-	return writeconfig(data)
-}
-
-func writeconfig(data []Backend) (changed bool) {
+func writeconfig(data interface{}) (changed bool) {
 
 	//  open template
 	t, err := template.ParseFiles("/config/border-controller-config.tpl")
@@ -198,65 +157,42 @@ func writeconfig(data []Backend) (changed bool) {
 
 }
 
-func getstackerviceinfo(config T) (backends []string, err error) {
+func getstacktaskdns(task_dns string) (addrs []string, err error) {
 
-	var m Message
-
-	for _, dh := range config.General.Swarm.Docker_hosts {
-		log.Print(dh)
-
-		resp, err := http.Get("http://" + dh + "." +
-			config.General.Swarm.Docker_host_dns_domain + ":" +
-			config.General.Swarm.Docker_controller.Exposed_port +
-			"/service/inspect/" + config.General.Swarm.Ingress_service_name +
-			"?api_key=" + config.General.Swarm.Docker_controller.Api_key)
-
-		if err != nil {
-			log.Print(err)
-			continue
-		}
-
-		defer resp.Body.Close()
-
-		if resp.StatusCode == 200 { // OK
-			bodyBytes, err := ioutil.ReadAll(resp.Body)
-			if err != nil {
-				return nil, errors.New("Error reading response body")
-			}
-
-			err = json.Unmarshal(bodyBytes, &m)
-			if err != nil {
-				return nil, errors.New("Error reading during unmarshal of response body.")
-			}
-
-			if m.Acode >= 500 {
-				return nil, errors.New(strconv.Itoa(int(m.Acode)) + " " + m.Astring)
-			}
-		}
-
-		return m.Aslice, nil
-
-	}
-
-	return nil, errors.New("Cannot reach any docker host")
-
-}
-
-func getstacktaskdns(config T) (backends []string, err error) {
-
-	if config.General.Swarm.Stack_service_port == "" {
-		log.Panic("No Swarm Service Port given! Exiting!")
-	}
-
-	// resolve fiven service names
-
-	servicerecords, err := net.LookupHost(config.General.Swarm.Stack_service_task_dns_name)
+	// resolve given service names
+	servicerecords, err := net.LookupHost(task_dns)
 
 	if err != nil {
 		return nil, err
 	}
 
 	return servicerecords, nil
+
+}
+
+func refreshconfigstruct(config T) {
+	// get information on services and context configuration information
+	for k, v := range config.General.Resources {
+
+		// there must be a dns name given and we have to get the backend ips
+		servicerecords, err := getstacktaskdns(v.Task_dns)
+
+		if err != nil {
+			log.Warn("Cannot get DNS records for config entry: " + k)
+		}
+
+		for _, s := range servicerecords {
+			var b Backend
+			b.Server = s
+			b.Port = v.Port
+			v.Servers = append(v.Servers, b)
+		}
+
+		v.Upstream = k
+
+	}
+
+	fmt.Printf("%+v", config.General.Resources["testcontexta"])
 
 }
 
@@ -285,41 +221,18 @@ func main() {
 		checkintervall = 30
 	}
 
+	// refresh config struct
+	refreshconfigstruct(config)
+
 	// now checkconfig, this will loop forever
 	mainloop = true
 	for mainloop == true {
 
-		var changed bool
+		// refresh config struct
+		refreshconfigstruct(config)
 
-		if config.General.Swarm.Stack_service_task_dns_name != "" && config.General.Swarm.Ingress_service_name != "" {
-			log.Panic("Stack Service Task DNS and Ingress Service Name configured! Exiting!")
-		}
-
-		if config.General.Swarm.Ingress_service_name != "" {
-			backends, err := getstackerviceinfo(config)
-			log.Print(backends)
-			if err != nil {
-				log.Print(err)
-				time.Sleep(time.Duration(checkintervall) * time.Second)
-				continue
-			}
-
-			changed = checkconfig(backends, config.General.Swarm.Docker_host_dns_domain)
-
-		} else if config.General.Swarm.Stack_service_task_dns_name != "" {
-			backends, err := getstacktaskdns(config)
-			log.Print(backends)
-			if err != nil {
-				log.Print(err)
-				time.Sleep(time.Duration(checkintervall) * time.Second)
-				continue
-			}
-
-			changed = checkconfigdns(backends, config.General.Swarm.Stack_service_port)
-
-		} else {
-			log.Panic("No Service Descovery configured!")
-		}
+		// process config
+		changed := writeconfig(config.General.Resources)
 
 		if changed == true {
 			if isprocessrunningps("nginx") {
@@ -335,4 +248,5 @@ func main() {
 
 		time.Sleep(time.Duration(checkintervall) * time.Second)
 	}
+
 }

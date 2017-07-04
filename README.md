@@ -8,22 +8,19 @@ The current problem in the Docker swarm infrastructure is, that the swarm mesh n
 
 # Configuration
 
-You cannot use **ingress_service_name** and **stack_service_task_dns_name** at the same time! You have to decide if you want to use the **docker_controller** or the Docker Swarm Network Overlay DNS descovery service.
-
 ```
 debug: true
 general:
-  swarm:
-    docker_hosts:
-      - your.docker.host
-    docker_host_dns_domain: docker.host
-    ingress_service_name: ingress_lb
-    stack_service_task_dns_name: tasks.your_app
-    stack_service_port: 8080
-    docker_controller:
-      api_key: your-docker-controller-api-key
-      exposed_port: 21212
   check_intervall: 10
+  resources:
+    testcontexta:
+      context: /context/a
+      port: 8080
+      task_dns: tasks.testa.app
+    testcontextb:
+      context: /context/b
+      port: 9090
+      task_dns: tasks.testb.app
 ```
 
 ## debug
