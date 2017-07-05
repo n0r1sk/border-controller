@@ -197,8 +197,6 @@ func refreshconfigstruct(config T) {
 
 	}
 
-	fmt.Printf("%+v", config.General.Resources["testcontexta"])
-
 }
 
 func main() {
