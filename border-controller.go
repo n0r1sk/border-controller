@@ -27,6 +27,7 @@ import (
 	"os/exec"
 	"regexp"
 	"strconv"
+	"strings"
 	"text/template"
 	"time"
 
@@ -165,6 +166,8 @@ func getstacktaskdns(task_dns string) (addrs []string, err error) {
 	if err != nil {
 		return nil, err
 	}
+
+	log.Info("TASK_DNS: " + task_dns + " ENTRIES: " + strings.Join(servicerecords, " "))
 
 	return servicerecords, nil
 
