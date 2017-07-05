@@ -224,9 +224,6 @@ func main() {
 		checkintervall = 30
 	}
 
-	// refresh config struct
-	refreshconfigstruct(config)
-
 	// now checkconfig, this will loop forever
 	mainloop = true
 	for mainloop == true {
