@@ -32,3 +32,5 @@ If parameter is not provided, default value set to false.
 ## check_intervall
 If parameter is not provided, default value set to 30 secons. Time duration is in seconds.
 
+# version
+0.9
