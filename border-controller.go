@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"text/template"
@@ -162,6 +163,7 @@ func getstacktaskdns(task_dns string) (addrs []string, err error) {
 
 	// resolve given service names
 	servicerecords, err := net.LookupHost(task_dns)
+	sort.Strings(servicerecords)
 
 	if err != nil {
 		return nil, err
