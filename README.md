@@ -21,6 +21,13 @@ general:
       context: /context/b
       port: 9090
       task_dns: tasks.testb.app
+pdns:
+  api_url: https://your.pdns/api/v1/servers/localhost/zones
+  api_key: yourapikey
+  ip_address: 1.1.1.1
+  domain_prefix: funny
+  domain_zone: domain.com
+
 ```
 
 ## debug
