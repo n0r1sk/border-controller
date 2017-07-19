@@ -184,7 +184,7 @@ func getstacktaskdns(task_dns string) (addrs []string, err error) {
 
 }
 
-func refreshconfigstruct(config T) {
+func refreshconfigstruct(config T) (err error) {
 	// get information on services and context configuration information
 
 	log.Debug("Config Struct: " + fmt.Sprintf("%+v", config))
@@ -196,6 +196,7 @@ func refreshconfigstruct(config T) {
 
 		if err != nil {
 			log.Warn("Cannot get DNS records for config entry: " + k)
+			return err
 		}
 
 		for _, s := range servicerecords {
@@ -234,6 +235,8 @@ func refreshconfigstruct(config T) {
 
 	}
 
+	return nil
+
 }
 
 func main() {
@@ -269,13 +272,20 @@ func main() {
 
 	// now checkconfig, this will loop forever
 	mainloop = true
+	var changed bool = false
+
 	for mainloop == true {
 
 		// refresh config struct
-		refreshconfigstruct(config)
+		suc := refreshconfigstruct(config)
+		if suc != nil {
+			// on error during refresh (DNS) sleep and continue
+			time.Sleep(time.Duration(checkintervall) * time.Second)
+			continue
+		}
 
 		// process config
-		changed := writeconfig(config.General.Resources)
+		changed = writeconfig(config.General.Resources)
 
 		if changed == true {
 			if isprocessrunningps("nginx") {
