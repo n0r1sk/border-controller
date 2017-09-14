@@ -89,11 +89,20 @@ func isprocessrunningps(processname string) (running bool) {
 func startprocess() {
 	log.Print("Start Process!")
 	cmd := exec.Command("nginx", "-g", "daemon off;")
-	err := cmd.Start()
+
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = cmd.Start()
 	if err != nil {
 		log.Fatal(err)
 		mainloop = false
 	}
+
+	slurp, _ := ioutil.ReadAll(stderr)
+	log.Warn(string(slurp[:]))
 
 }
 
@@ -169,7 +178,7 @@ func getstacktaskdns(task_dns string) (addrs []string, err error) {
 		return nil, err
 	}
 
-	log.Info("TASK_DNS: " + task_dns + " ENTRIES: " + strings.Join(servicerecords, " "))
+	log.Debug("TASK_DNS: " + task_dns + " ENTRIES: " + strings.Join(servicerecords, " "))
 
 	return servicerecords, nil
 
@@ -178,6 +187,7 @@ func getstacktaskdns(task_dns string) (addrs []string, err error) {
 func refreshconfigstruct(config T) (err error) {
 	// get information on services and context configuration information
 
+	log.Debug("Config Struct: " + fmt.Sprintf("%+v", config))
 	for k, v := range config.General.Resources {
 		v.Servers = nil
 
@@ -196,7 +206,32 @@ func refreshconfigstruct(config T) (err error) {
 			v.Servers = append(v.Servers, b)
 		}
 
+		// set the key to upstream
 		v.Upstream = k
+
+		// add values of DNS to config struct
+		if v.Domain_zone == "" {
+			if config.General.Domain_zone != "" {
+				v.Domain_zone = config.General.Domain_zone
+			} else if config.Pdns.Domain_zone != "" {
+				v.Domain_zone = config.Pdns.Domain_zone
+			} else {
+				// leave empty
+			}
+		}
+
+		if v.Domain_prefix == "" {
+			if config.General.Domain_prefix != "" {
+				v.Domain_prefix = config.General.Domain_prefix
+			} else if config.Pdns.Domain_prefix != "" {
+				v.Domain_prefix = config.Pdns.Domain_prefix
+			} else {
+				// leave empty
+			}
+		}
+
+		// fill the dns values
+		log.Debug("Config Struct: " + fmt.Sprintf("%+v", v))
 
 	}
 
@@ -209,9 +244,10 @@ func main() {
 	// configure logrus logger
 	customFormatter := new(log.TextFormatter)
 	customFormatter.TimestampFormat = "2006-01-02 15:04:05"
-	log.SetFormatter(customFormatter)
 	customFormatter.FullTimestamp = true
 	customFormatter.ForceColors = true
+	log.SetFormatter(customFormatter)
+	log.SetOutput(os.Stdout)
 
 	config, ok := ReadConfigfile()
 	if !ok {
@@ -227,6 +263,11 @@ func main() {
 	checkintervall := config.General.Check_intervall
 	if checkintervall == 0 {
 		checkintervall = 30
+	}
+
+	// check if pdns configuration is enabled
+	if config.Pdns.Api_key != "" {
+		updatepdns(config)
 	}
 
 	// now checkconfig, this will loop forever

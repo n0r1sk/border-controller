@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	//"fmt"
 	"io/ioutil"
 	"log"
 
@@ -25,29 +24,29 @@ import (
 )
 
 type Backendcfg struct {
-	Upstream string
-	Context  string
-	Servers  []Backend
-	Port     string
-	Task_dns string
+	Upstream      string
+	Context       string
+	Servers       []Backend
+	Port          string
+	Task_dns      string
+	Domain_prefix string
+	Domain_zone   string
 }
 
 type T struct {
 	Debug   bool
 	General struct {
-		Swarm struct {
-			Docker_hosts                []string
-			Docker_host_dns_domain      string
-			Ingress_service_name        string
-			Stack_service_task_dns_name string
-			Stack_service_port          string
-			Docker_controller           struct {
-				Api_key      string
-				Exposed_port string
-			}
-		}
 		Check_intervall int64
+		Domain_prefix   string
+		Domain_zone     string
 		Resources       map[string]*Backendcfg
+	}
+	Pdns struct {
+		Api_url       string
+		Api_key       string
+		Ip_address    string
+		Domain_prefix string
+		Domain_zone   string
 	}
 }
 
