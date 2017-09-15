@@ -89,21 +89,12 @@ func isprocessrunningps(processname string) (running bool) {
 func startprocess() {
 	log.Print("Start Process!")
 	cmd := exec.Command("nginx", "-g", "daemon off;")
+	err := cmd.Start()
 
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	err = cmd.Start()
 	if err != nil {
 		log.Fatal(err)
 		mainloop = false
 	}
-
-	slurp, _ := ioutil.ReadAll(stderr)
-	log.Warn(string(slurp[:]))
-
 }
 
 func reloadprocess() {
