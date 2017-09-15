@@ -33,6 +33,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	. "github.com/logrusorgru/aurora"
 )
 
 var mainloop bool
@@ -190,6 +191,7 @@ func refreshconfigstruct(config T) (err error) {
 			return err
 		}
 
+		log.Info(Sprintf(Cyan("%s: "),k) + fmt.Sprintf("%+v", servicerecords))
 		for _, s := range servicerecords {
 			var b Backend
 			b.Server = s
@@ -266,6 +268,11 @@ func main() {
 	var changed bool = false
 
 	for mainloop == true {
+		// reread config file
+		config, ok := ReadConfigfile()
+		if !ok {
+			log.Panic("Error during config parsing")
+		}
 
 		// refresh config struct
 		suc := refreshconfigstruct(config)
