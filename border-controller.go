@@ -52,6 +52,7 @@ type Backend struct {
 func isprocessrunningps(processname string) (running bool) {
 
 	// get all folders from proc filesystem
+	running = false
 
 	files, _ := ioutil.ReadDir("/proc")
 	for _, f := range files {
@@ -62,28 +63,46 @@ func isprocessrunningps(processname string) (running bool) {
 			f, err := os.Open("/proc/" + f.Name() + "/status")
 			if err != nil {
 				log.Println(err)
-				return false
+				return running
 			}
 
 			// read status line by line
 			scanner := bufio.NewScanner(f)
 
 			// check if process name in status of process
+			var process bool
+			process = false
+
 			for scanner.Scan() {
+
 
 				re := regexp.MustCompile("^Name:.*" + processname + ".*")
 				match := re.MatchString(scanner.Text())
 
 				if match == true {
-					return true
+					running = true
+					process = true
+				}
+
+				if process == true {
+					re := regexp.MustCompile("^State:.*Z.*")
+					match := re.MatchString(scanner.Text())
+					if match == true {
+						log.Warn(Sprintf(Bold(Magenta("Error ZOMBIE process! Config error?"))))
+					}
+					running = true
 				}
 
 			}
+			if running == true{
+				return running
+			}
 
 		}
+
 	}
 
-	return false
+	return running
 
 }
 
@@ -93,9 +112,9 @@ func startprocess() {
 	err := cmd.Start()
 
 	if err != nil {
-		log.Fatal(err)
-		mainloop = false
+		log.Warn(Sprintf(Cyan("%s: "),err.Error()))
 	}
+	isprocessrunningps("nginx")
 }
 
 func reloadprocess() {
@@ -103,9 +122,10 @@ func reloadprocess() {
 	cmd := exec.Command("nginx", "-s", "reload")
 	err := cmd.Start()
 	if err != nil {
-		log.Fatal(err)
+		log.Warn(Sprintf(Cyan("%s: "),err.Error()))
 	}
 	cmd.Wait()
+	isprocessrunningps("nginx")
 }
 
 func writeconfig(data interface{}) (changed bool) {
@@ -176,8 +196,10 @@ func getstacktaskdns(task_dns string) (addrs []string, err error) {
 
 }
 
-func refreshconfigstruct(config T) (err error) {
+func refreshconfigstruct(config T) (ok bool, err error) {
 	// get information on services and context configuration information
+
+	ok = true
 
 	log.Debug("Config Struct: " + fmt.Sprintf("%+v", config))
 	for k, v := range config.General.Resources {
@@ -188,7 +210,7 @@ func refreshconfigstruct(config T) (err error) {
 
 		if err != nil {
 			log.Warn("Cannot get DNS records for config entry: " + k)
-			return err
+			ok = false
 		}
 
 		log.Info(Sprintf(Cyan("%s: "),k) + fmt.Sprintf("%+v", servicerecords))
@@ -228,7 +250,7 @@ func refreshconfigstruct(config T) (err error) {
 
 	}
 
-	return nil
+	return ok, nil
 
 }
 
@@ -242,9 +264,9 @@ func main() {
 	log.SetFormatter(customFormatter)
 	log.SetOutput(os.Stdout)
 
-	config, ok := ReadConfigfile()
+	ok, config := ReadConfigfile()
 	if !ok {
-		log.Panic("Error during config parsing")
+		log.Warn(Sprintf(Red("Error during config parsing, yet continuing!")))
 	}
 
 	// get debug flag from config
@@ -269,17 +291,20 @@ func main() {
 
 	for mainloop == true {
 		// reread config file
-		config, ok := ReadConfigfile()
+		ok, config := ReadConfigfile()
 		if !ok {
-			log.Panic("Error during config parsing")
+			log.Warn(Sprintf(Red("Error during config parsing, yet continuing!")))
 		}
 
 		// refresh config struct
-		suc := refreshconfigstruct(config)
-		if suc != nil {
+		ok, err := refreshconfigstruct(config)
+		if err != nil {
 			// on error during refresh (DNS) sleep and continue
 			time.Sleep(time.Duration(checkintervall) * time.Second)
-			continue
+		}
+
+		if ok == false {
+			log.Warn(Sprintf(Red("Error during refresh of config, yet starting nginx!")))
 		}
 
 		// process config
