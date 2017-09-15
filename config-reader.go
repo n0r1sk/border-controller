@@ -50,7 +50,7 @@ type T struct {
 	}
 }
 
-func ReadConfigfile() (config T, ok bool) {
+func ReadConfigfile() (ok bool, config T) {
 	cfgdata, err := ioutil.ReadFile("/config/border-controller.yml")
 
 	if err != nil {
@@ -65,5 +65,5 @@ func ReadConfigfile() (config T, ok bool) {
 		log.Panic(err)
 	}
 
-	return t, true
+	return true, t
 }
