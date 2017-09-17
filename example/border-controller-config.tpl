@@ -18,5 +18,8 @@ http {
 
     server {
         listen 80;
+	location / {
+        	proxy_pass http://{{.testcontexta.Upstream}};
+	}
     }
 }
