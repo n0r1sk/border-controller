@@ -33,9 +33,11 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	. "github.com/logrusorgru/aurora"
 )
 
 var mainloop bool
+var ctrlcmd *exec.Cmd
 
 type Message struct {
 	Acode   int64
@@ -51,6 +53,7 @@ type Backend struct {
 func isprocessrunningps(processname string) (running bool) {
 
 	// get all folders from proc filesystem
+	running = false
 
 	files, _ := ioutil.ReadDir("/proc")
 	for _, f := range files {
@@ -60,51 +63,83 @@ func isprocessrunningps(processname string) (running bool) {
 			// open status file of process
 			f, err := os.Open("/proc/" + f.Name() + "/status")
 			if err != nil {
-				log.Println(err)
-				return false
+				log.Info(err)
+				return running
 			}
 
 			// read status line by line
 			scanner := bufio.NewScanner(f)
 
 			// check if process name in status of process
+			var process bool
+			process = false
+
 			for scanner.Scan() {
+
 
 				re := regexp.MustCompile("^Name:.*" + processname + ".*")
 				match := re.MatchString(scanner.Text())
 
 				if match == true {
-					return true
+					running = true
+					process = true
+				}
+
+				if process == true {
+					re := regexp.MustCompile("^State:.*Z.*")
+					match := re.MatchString(scanner.Text())
+					if match == true {
+						log.Warn(Sprintf(Bold(Magenta("Error ZOMBIE process! Config error?"))))
+						// The process seems to be dead, call wait on it
+						// to bury the child process from the parent
+						err := ctrlcmd.Wait()
+						if err != nil{
+							log.Warn(Sprintf(Magenta("%s"),err.Error()))
+						}
+					}
+					running = true
 				}
 
 			}
+			if running == true{
+				return running
+			}
 
 		}
+
 	}
 
-	return false
+	return running
 
 }
 
 func startprocess() {
-	log.Print("Start Process!")
+	log.Info("Start Process!")
 	cmd := exec.Command("nginx", "-g", "daemon off;")
 	err := cmd.Start()
 
 	if err != nil {
-		log.Fatal(err)
-		mainloop = false
+		log.Warn(Sprintf(Cyan("%s: "),err.Error()))
+	}
+	ctrlcmd = cmd
+
+	// just give the process some time to start
+	time.Sleep(time.Duration(250) * time.Millisecond)
+	ok := isprocessrunningps("nginx")
+	if ok == true{
+		log.Info(Green("Process started"))
 	}
 }
 
 func reloadprocess() {
-	log.Print("Reloading Process!")
+	log.Info("Reloading Process!")
 	cmd := exec.Command("nginx", "-s", "reload")
 	err := cmd.Start()
 	if err != nil {
-		log.Fatal(err)
+		log.Warn(Sprintf(Cyan("%s: "),err.Error()))
 	}
 	cmd.Wait()
+	isprocessrunningps("nginx")
 }
 
 func writeconfig(data interface{}) (changed bool) {
@@ -112,7 +147,7 @@ func writeconfig(data interface{}) (changed bool) {
 	//  open template
 	t, err := template.ParseFiles("/config/border-controller-config.tpl")
 	if err != nil {
-		log.Print(err)
+		log.Info(err)
 		return false
 	}
 
@@ -120,38 +155,38 @@ func writeconfig(data interface{}) (changed bool) {
 	var tpl bytes.Buffer
 	err = t.Execute(&tpl, data)
 	if err != nil {
-		log.Print(err)
+		log.Info(err)
 		return false
 	}
 
 	// create md5 of result
 	md5tpl := fmt.Sprintf("%x", md5.Sum([]byte(tpl.String())))
-	log.Print("MD5 of TPL: " + md5tpl)
+	log.Debug("MD5 of TPL: " + md5tpl)
 	log.Debug("TPL: " + tpl.String())
 
 	// open existing config, read it to memory
 	exconf, errexconf := ioutil.ReadFile("/etc/nginx/nginx.conf")
 	if errexconf != nil {
-		log.Print("Cannot read existing conf!")
-		log.Print(errexconf)
+		log.Warn("Cannot read existing conf!")
+		log.Warn(errexconf)
 	}
 
 	md5exconf := fmt.Sprintf("%x", md5.Sum(exconf))
-	log.Print("MD5 of EXCONF: " + md5exconf)
+	log.Debug("MD5 of EXCONF: " + md5exconf)
 
 	// comapre md5 and write config if needed
 	if md5tpl == md5exconf {
-		log.Print("MD5 sums equal! Nothing to do.")
+		log.Info(Green("MD5 sums equal! Nothing to do."))
 		return false
 	}
 
-	log.Print("MD5 sums different writing new conf!")
+	log.Info(Brown("MD5 sums different writing new conf!"))
 
 	// overwrite existing conf
 	err = ioutil.WriteFile("/etc/nginx/nginx.conf", []byte(tpl.String()), 0644)
 	if err != nil {
-		log.Print("Cannot write config file.")
-		log.Print(err)
+		log.Warn("Cannot write config file.")
+		log.Warn(err)
 		mainloop = false
 	}
 
@@ -175,8 +210,10 @@ func getstacktaskdns(task_dns string) (addrs []string, err error) {
 
 }
 
-func refreshconfigstruct(config T) (err error) {
+func refreshconfigstruct(config T) (ok bool, err error) {
 	// get information on services and context configuration information
+
+	ok = true
 
 	log.Debug("Config Struct: " + fmt.Sprintf("%+v", config))
 	for k, v := range config.General.Resources {
@@ -187,9 +224,10 @@ func refreshconfigstruct(config T) (err error) {
 
 		if err != nil {
 			log.Warn("Cannot get DNS records for config entry: " + k)
-			return err
+			ok = false
 		}
 
+		log.Info(Sprintf(Cyan("%s: "),k) + fmt.Sprintf("%+v", servicerecords))
 		for _, s := range servicerecords {
 			var b Backend
 			b.Server = s
@@ -226,7 +264,7 @@ func refreshconfigstruct(config T) (err error) {
 
 	}
 
-	return nil
+	return ok, nil
 
 }
 
@@ -240,9 +278,9 @@ func main() {
 	log.SetFormatter(customFormatter)
 	log.SetOutput(os.Stdout)
 
-	config, ok := ReadConfigfile()
+	ok, config := ReadConfigfile()
 	if !ok {
-		log.Panic("Error during config parsing")
+		log.Warn(Sprintf(Red("Error during config parsing, yet continuing!")))
 	}
 
 	// get debug flag from config
@@ -266,13 +304,21 @@ func main() {
 	var changed bool = false
 
 	for mainloop == true {
+		// reread config file
+		ok, config := ReadConfigfile()
+		if !ok {
+			log.Warn(Sprintf(Red("Error during config parsing, yet continuing!")))
+		}
 
 		// refresh config struct
-		suc := refreshconfigstruct(config)
-		if suc != nil {
+		ok, err := refreshconfigstruct(config)
+		if err != nil {
 			// on error during refresh (DNS) sleep and continue
 			time.Sleep(time.Duration(checkintervall) * time.Second)
-			continue
+		}
+
+		if ok == false {
+			log.Warn(Sprintf(Red("Error during refresh of config, yet starting nginx!")))
 		}
 
 		// process config
