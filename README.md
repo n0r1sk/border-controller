@@ -1,4 +1,5 @@
-![Build Status](https://img.shields.io/docker/pulls/n0r1skcom/border-controller.svg) ![Build Status](https://img.shields.io/docker/automated/n0r1skcom/border-controller.svg)  ![Build Status](https://img.shields.io/docker/build/n0r1skcom/border-controller.svg) [![Build Status](https://travis-ci.org/n0r1sk/border-controller.svg?branch=edge)](https://travis-ci.org/n0r1sk/border-controller)
+![Build Status](https://img.shields.io/docker/pulls/n0r1skcom/border-controller.svg) ![Build Status](https://img.shields.io/docker/automated/n0r1skcom/border-controller.svg) [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fn0r1sk%2Fborder-controller.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fn0r1sk%2Fborder-controller?ref=badge_shield)
+ ![Build Status](https://img.shields.io/docker/build/n0r1skcom/border-controller.svg) [![Build Status](https://travis-ci.org/n0r1sk/border-controller.svg?branch=edge)](https://travis-ci.org/n0r1sk/border-controller)
 
 [![Anchore Image Overview](https://anchore.io/service/badges/image/68f00f08cde7b43f90ad3ce9a3a48bf282e649e1bd6854df47e7875f9d1f5882)](https://anchore.io/image/dockerhub/n0r1skcom%2Fborder-controller%3A1.0.1)
 
@@ -86,3 +87,7 @@ You can find the changelog information [here](CHANGELOG.md).
 
 # Version
 1.2
+
+
+## License
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fn0r1sk%2Fborder-controller.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2Fn0r1sk%2Fborder-controller?ref=badge_large)
